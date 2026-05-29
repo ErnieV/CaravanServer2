@@ -1,0 +1,55 @@
+name: Deploy to NUC
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install rsync
+        run: sudo apt-get update && sudo apt-get install -y rsync
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s' "${{ secrets.NUC_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          printf '%s' "${{ secrets.NUC_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Sync repository to NUC
+        env:
+          NUC_HOST: ${{ secrets.NUC_HOST }}
+          NUC_USER: ${{ secrets.NUC_USER }}
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.DS_Store' \
+            -e "ssh -i ~/.ssh/id_ed25519" \
+            ./ "${NUC_USER}@${NUC_HOST}:/opt/docker/"
+
+      - name: Prepare runtime dirs and start stack
+        env:
+          NUC_HOST: ${{ secrets.NUC_HOST }}
+          NUC_USER: ${{ secrets.NUC_USER }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${NUC_USER}@${NUC_HOST}" 'bash -s' <<'EOF'
+          set -euo pipefail
+          sudo mkdir -p /opt/docker/{homeassistant,plex,mosquitto/{data,log},esphome,portainer,tailscale} /srv/{media,downloads}
+          if [ -f /opt/docker/.env.example ] && [ ! -f /opt/docker/.env ]; then
+            sudo cp /opt/docker/.env.example /opt/docker/.env
+          fi
+          sudo chown -R root:root /opt/docker
+          sudo chmod -R u=rwX,go=rX /opt/docker
+          cd /opt/docker
+          sudo docker compose up -d
+          EOF

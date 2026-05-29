@@ -1,0 +1,80 @@
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${HA_CONFIG_DIR}:/config
+      - /etc/localtime:/etc/localtime:ro
+    privileged: true
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      PUID: ${PUID}
+      PGID: ${PGID}
+      TZ: ${TZ}
+      VERSION: docker
+      PLEX_CLAIM: ${PLEX_CLAIM}
+    volumes:
+      - ${PLEX_CONFIG_DIR}:/config
+      - ${MEDIA_DIR}:/data/media:ro
+      - ${DOWNLOADS_DIR}:/data/downloads
+      - /etc/localtime:/etc/localtime:ro
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+    volumes:
+      - ${MOSQUITTO_CONFIG_DIR}/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${MOSQUITTO_CONFIG_DIR}/data:/mosquitto/data
+      - ${MOSQUITTO_CONFIG_DIR}/log:/mosquitto/log
+
+  esphome:
+    image: ghcr.io/esphome/esphome:stable
+    container_name: esphome
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ}
+    volumes:
+      - ${ESPHOME_CONFIG_DIR}:/config
+      - /etc/localtime:/etc/localtime:ro
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${PORTAINER_DATA_DIR}:/data
+
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: tailscale
+    network_mode: host
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TZ: ${TZ}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_HOSTNAME: ${TAILSCALE_HOSTNAME}
+    volumes:
+      - ${TAILSCALE_STATE_DIR}:/var/lib/tailscale
+    command: tailscaled --state=/var/lib/tailscale/tailscaled.state

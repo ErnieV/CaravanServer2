@@ -1,0 +1,14 @@
+.env
+.DS_Store
+*.log
+
+# Runtime and generated data are created on the NUC, not committed here.
+homeassistant/
+plex/
+mosquitto/data/
+mosquitto/log/
+esphome/
+portainer/
+tailscale/
+srv/media/
+srv/downloads/
